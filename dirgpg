@@ -1,0 +1,100 @@
+#!/bin/sh
+
+# Configuration, change these as needed
+DATA_DIR="$HOME/data"
+ENCRYPTED_FILE="$HOME/.data-encrypted"
+OLD_ENCRYPTED_FILE="$HOME/.data-encrypted-old"
+GPG_RECIPIENT="<your-email-or-key-id>" # Set this to your GPG key ID or email
+
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[0;33m"
+CYAN="\033[0;36m"
+WHITE="\033[1;37m"
+RESET="\033[0m"
+
+banner() {
+    echo -e "
+${CYAN}                                                      
+     ##     ##                                        
+     ##                                               
+  #####    ###     #####     #####   #####     #####  
+ ##  ##     ##     ##  ##   ##  ##   ##  ##   ##  ##  
+ ##  ##     ##     ##        #####   #####     #####  
+  #####   ######   ##           ##   ##           ##  
+                            #####    ##       #####   
+
+${GREEN}dirgpg - Simple directory encryption with GPG${RESET}
+${CYAN}=================================================================${RESET}
+"
+}
+
+cleanup() {
+
+    if [ -d "$DATA_DIR" ]; then
+        echo -e "\n${GREEN}[INFO]${RESET} Terminating script..."
+        # Save old encrypted data directory
+        if [ -f "$ENCRYPTED_FILE" ]; then
+            mv "$ENCRYPTED_FILE" "$OLD_ENCRYPTED_FILE"
+            echo -e "${GREEN}[INFO]${RESET} Moved old encrypted file to ${YELLOW}$OLD_ENCRYPTED_FILE${RESET}."
+        fi
+
+        # Encrypt the data directory and clean up
+        tar -czf "$DATA_DIR.tar.gz" -C "$DATA_DIR" .
+        gpg --encrypt --recipient "$GPG_RECIPIENT" --output "$ENCRYPTED_FILE" "$DATA_DIR.tar.gz"
+        rm -rf "$DATA_DIR" "$DATA_DIR.tar.gz"
+        echo -e "${GREEN}[INFO]${RESET} Encrypted ${YELLOW}$DATA_DIR${RESET} to ${YELLOW}$ENCRYPTED_FILE${RESET}."
+        echo -e "${GREEN}[INFO]${RESET} Cleanup complete. Exiting."
+    fi
+    exit 0
+}
+
+wait_for_exit() {
+    trap cleanup SIGINT SIGTERM EXIT
+    echo -e "\n${CYAN}-------------------------------------------------------------------"
+    echo -e "${GREEN}[INFO]${RESET} $DATA_DIR is ready."
+    echo -e "${GREEN}[INFO]${RESET} Modify its contents as needed."
+    echo -e "${GREEN}[INFO]${RESET} Press any key or Ctrl-C to finish."
+    echo -e "${CYAN}-------------------------------------------------------------------${RESET}"
+    read -p ""
+}
+
+# Ensure GPG recipient is set
+if [ "$GPG_RECIPIENT" == "<your-email-or-key-id>" ]; then
+    echo -e "${RED}[ERROR]${RESET} Please configure GPG_RECIPIENT in the script."
+    exit 1
+fi
+
+# Main script logic
+banner
+
+# Check if data dir is already unencrypted
+if [ -f "$ENCRYPTED_FILE" ] && [ -d "$DATA_DIR" ]; then
+    echo -e "${YELLOW}[WARNING]${RESET} $DATA_DIR directory was already unencrypted."
+    echo -e "${YELLOW}[WARNING]${RESET} This indicates the script was terminated improperly last time."
+    wait_for_exit
+fi
+
+# Normal operation: decrypt the data dir and wait for termination
+if [ -f "$ENCRYPTED_FILE" ] && [ ! -d "$DATA_DIR" ]; then
+    mkdir "$DATA_DIR"
+    gpg --decrypt "$ENCRYPTED_FILE" > "$DATA_DIR.tar.gz"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}[ERROR]${RESET} Failed to decrypt $ENCRYPTED_FILE."
+        rm -rf "$DATA_DIR" "$DATA_DIR.tar.gz"
+        exit 1
+    fi
+    tar -xzf "$DATA_DIR.tar.gz" -C "$DATA_DIR"
+    rm "$DATA_DIR.tar.gz"
+
+    wait_for_exit
+fi
+
+# Check if the script is being run for the first time
+if [ ! -f "$ENCRYPTED_FILE" ]; then
+    if [ ! -d "$DATA_DIR" ]; then
+        mkdir "$DATA_DIR"
+        echo -e "${GREEN}[INFO]${RESET} Created directory: ${YELLOW}$DATA_DIR${RESET}."
+    fi
+    wait_for_exit
+fi
