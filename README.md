@@ -81,7 +81,7 @@ dirgpg - Simple directory encryption with GPG
 [INFO] Created directory: /home/your-username/data.
 
 -------------------------------------------------------------------
-[INFO] /home/ferran/data is ready.
+[INFO] /home/your-username/data is ready.
 [INFO] Modify its contents as needed.
 [INFO] Press any key or Ctrl-C to finish.
 -------------------------------------------------------------------
